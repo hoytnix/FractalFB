@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+docs/
+docsc/
+facebook_ads.csv
+funnel_*.png
+bar_*.png
+kpi_report.pdf
+reports_database.yaml

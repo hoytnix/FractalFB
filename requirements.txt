@@ -1,0 +1,6 @@
+pandas
+pyyaml
+pil
+fpdf
+sphinx
+sphinx-rtd-theme
