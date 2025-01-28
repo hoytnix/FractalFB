@@ -102,102 +102,99 @@ def get_gradient_color(value: float, min_val: float, max_val: float) -> tuple:
     
     return (r, g, b)
 
-
 def create_funnel_image(metrics: dict, kpi_results: list, width: int = 800, height: int = 600) -> Image:
-    """Create a funnel visualization of metrics.
+	# Validate and clean input metrics using safe conversion
+	validated_metrics = {}
+	for key, value in metrics.items():
+		if pd.isna(value):
+			validated_metrics[key] = 0
+		elif key in ['Link Clicks (#)', 'Leads (#)']:
+			validated_metrics[key] = safe_convert_int(value)
+		else:
+			validated_metrics[key] = safe_convert_float(value)
 
-    Args:
-        metrics: Dictionary of metrics to visualize.
-        kpi_results: List of KPI results for comparison.
-        width: Width of the output image.
-        height: Height of the output image.
+	# Create image
+	image = Image.new('RGB', (width, height), 'white')
+	draw = ImageDraw.Draw(image)
 
-    Returns:
-        PIL Image object containing the funnel visualization.
-    """
-    image = Image.new('RGB', (width, height), 'white')
-    draw = ImageDraw.Draw(image)
-    
-    top_width = 600
-    bottom_width = 200
-    section_height = height // len(metrics)
-    
-    for i, (metric_name, value) in enumerate(metrics.items()):
-        y1 = i * section_height
-        y2 = (i + 1) * section_height
-        current_width = top_width - (i * ((top_width - bottom_width) / (len(metrics) - 1)))
-        x1 = (width - current_width) // 2
-        x2 = x1 + current_width
-        
-        kpi_mapping = {
-            'CPM ($)': 'CPM (cost per 1,000 impressions) (USD)',
-            'CTR (%)': 'CTR (link click-through rate)',
-            'CPC ($)': 'CPC (cost per link click) (USD)',
-            'Link Clicks (#)': 'Link clicks',
-            'Results (%)': 'Result rate',
-            'Leads (#)': 'Leads'
-        }
-        
-        kpi_name = kpi_mapping.get(metric_name)
-        fill_color = 'lightblue'
-        
-        if metric_name == 'Link Clicks (#)':
-            clicks_values = [result['Link clicks']['value'] for result in kpi_results if 'Link clicks' in result]
-            min_clicks = min(clicks_values) if clicks_values else 0
-            max_clicks = max(clicks_values) if clicks_values else 1
-            fill_color = get_gradient_color(value, min_clicks, max_clicks)
-        elif metric_name == 'Leads (#)':
-            leads_values = [result['Leads']['value'] for result in kpi_results if 'Leads' in result]
-            min_leads = min(leads_values) if leads_values else 0
-            max_leads = max(leads_values) if leads_values else 1
-            fill_color = get_gradient_color(value, min_leads, max_leads)
-        elif kpi_name in ['CPM (cost per 1,000 impressions) (USD)', 'CTR (link click-through rate)', 'CPC (cost per link click) (USD)', 'Result rate']:
-            for result in kpi_results:
-                if kpi_name in result:
-                    kpi_data = result[kpi_name]
-                    if isinstance(kpi_data, dict) and 'value' in kpi_data:
-                        min_val = float(kpi_data.get('min', 0))
-                        max_val = float(kpi_data.get('max', 1))
-                        fill_color = get_gradient_color(value, min_val, max_val)
-                        break
-        
-        draw.polygon([
-            (x1, y1),
-            (x2, y1),
-            (x2 - ((top_width - bottom_width) / (len(metrics) - 1)) // 2, y2),
-            (x1 + ((top_width - bottom_width) / (len(metrics) - 1)) // 2, y2)
-        ], outline='black', fill=fill_color)
-        
-        if kpi_name == 'Leads' or kpi_name == 'Link clicks':
-            text = f'{metric_name}: {int(value)}'
-        else:
-            text = f'{metric_name}: {value:.3f}'
-        
-        text_bbox = draw.textbbox((0, 0), text)
-        text_width = text_bbox[2] - text_bbox[0]
-        text_height = text_bbox[3] - text_bbox[1]
-        
-        text_x = (width - text_width) // 2
-        text_y = y1 + (section_height - text_height) // 2
-        
-        draw.text(
-            (text_x, text_y),
-            text,
-            fill='black'
-        )
-    
-    return image
+	# Calculate funnel dimensions
+	top_width = 600
+	bottom_width = 200
+	section_height = height // len(validated_metrics)
+
+	# Draw funnel sections
+	for i, (metric_name, value) in enumerate(validated_metrics.items()):
+		y1 = i * section_height
+		y2 = (i + 1) * section_height
+		current_width = top_width - (i * ((top_width - bottom_width) / (len(validated_metrics) - 1)))
+		x1 = int((width - current_width) // 2)
+		x2 = int(x1 + current_width)
+
+		# Map metric names
+		kpi_mapping = {
+			'CPM ($)': 'CPM (cost per 1,000 impressions) (USD)',
+			'CTR (%)': 'CTR (link click-through rate)',
+			'CPC ($)': 'CPC (cost per link click) (USD)',
+			'Link Clicks (#)': 'Link clicks',
+			'Results (%)': 'Result rate',
+			'Leads (#)': 'Leads'
+		}
+
+		kpi_name = kpi_mapping.get(metric_name)
+		fill_color = 'lightblue'
+
+		# Calculate gradient color
+		if metric_name == 'Link Clicks (#)':
+			clicks_values = [result['Link clicks']['value'] for result in kpi_results if 'Link clicks' in result]
+			min_clicks = min(clicks_values) if clicks_values else 0
+			max_clicks = max(clicks_values) if clicks_values else 1
+			fill_color = get_gradient_color(value, min_clicks, max_clicks)
+		elif metric_name == 'Leads (#)':
+			leads_values = [result['Leads']['value'] for result in kpi_results if 'Leads' in result]
+			min_leads = min(leads_values) if leads_values else 0
+			max_leads = max(leads_values) if leads_values else 1
+			fill_color = get_gradient_color(value, min_leads, max_leads)
+		elif kpi_name in ['CPM (cost per 1,000 impressions) (USD)', 'CTR (link click-through rate)', 'CPC (cost per link click) (USD)', 'Result rate']:
+			for result in kpi_results:
+				if kpi_name in result:
+					kpi_data = result[kpi_name]
+					if isinstance(kpi_data, dict) and 'value' in kpi_data:
+						min_val = float(kpi_data.get('min', 0))
+						max_val = float(kpi_data.get('max', 1))
+						fill_color = get_gradient_color(value, min_val, max_val)
+						break
+
+		# Draw funnel section
+		draw.polygon([
+			(x1, y1),
+			(x2, y1),
+			(int(x2 - ((top_width - bottom_width) / (len(validated_metrics) - 1)) // 2), y2),
+			(int(x1 + ((top_width - bottom_width) / (len(validated_metrics) - 1)) // 2), y2)
+		], outline='black', fill=fill_color)
+
+		# Format text
+		if metric_name in ['Leads (#)', 'Link Clicks (#)']:
+			text = f'{metric_name}: {int(value)}'
+			text_x = int((width - draw.textlength(text)) // 2)
+		else:
+			text = f'{metric_name}: {value:.3f}'
+			text_x = int((width - draw.textlength(text)) // 2)
+
+		# Get text dimensions for vertical positioning
+		text_bbox = draw.textbbox((0, 0), text)
+		text_height = text_bbox[3] - text_bbox[1]
+		text_y = int(y1 + (section_height - text_height) // 2)
+
+		# Draw text
+		draw.text(
+			(text_x, text_y),
+			text,
+			fill='black'
+		)
+
+	return image
 
 def check_kpi_ranges(data: list, settings: dict) -> list:
-    """Check if KPI values are within specified ranges.
-
-    Args:
-        data: List of dictionaries containing ad data.
-        settings: Dictionary containing KPI range settings.
-
-    Returns:
-        List of dictionaries containing KPI analysis results.
-    """
     results = []
     for entry in data:
         entry_results = {
@@ -207,10 +204,8 @@ def check_kpi_ranges(data: list, settings: dict) -> list:
             'Ad set budget type': entry.get('Ad set budget type', 'N/A')
         }
         for metric, value in entry.items():
-            if value == '-':
-                value = 0
-
             if metric in settings['kpi_ranges']:
+                value = safe_convert_float(value)
                 min_val = settings['kpi_ranges'][metric]['min']
                 max_val = settings['kpi_ranges'][metric]['max']
                 status_explanation = ''
@@ -371,7 +366,7 @@ def generate_ranking_page(pdf, results, data):
             'Ad Set Name': entry['Ad Set Name'],
             'CTR': float(data[i].get('CTR (link click-through rate)', 0)),
             'CPC': float(data[i].get('CPC (cost per link click) (USD)', 0)),
-            'Leads': int(data[i].get('Leads', 0)),
+            'Leads': float(data[i].get('Leads', 0)) if pd.notna(data[i].get('Leads')) else 0,
             'Result rate': float(data[i].get('Result rate', 0))
         }
         
@@ -410,7 +405,7 @@ def generate_ranking_page(pdf, results, data):
         pdf.cell(column_widths[2], 10, ad['Ad Set Name'][:30], 1, 0, 'L')
         pdf.cell(column_widths[3], 10, f"{ad['CTR']:.2f}", 1, 0, 'C')
         pdf.cell(column_widths[4], 10, f"{ad['CPC']:.2f}", 1, 0, 'C')
-        pdf.cell(column_widths[5], 10, str(ad['Leads']), 1, 0, 'C')
+        pdf.cell(column_widths[5], 10, f"{int(ad['Leads'])}", 1, 0, 'C')
         pdf.cell(column_widths[6], 10, f"{ad['Result rate']:.2f}", 1, 0, 'C')
         pdf.cell(column_widths[7], 10, f"{ad['Score']:.2f}", 1, 1, 'C')
     
@@ -422,66 +417,69 @@ def generate_ranking_page(pdf, results, data):
     pdf.multi_cell(0, 5, 'The overall score is calculated using the following weights:\n- CTR (Click-Through Rate): 30%\n- CPC (Cost Per Click) Efficiency: 30%\n- Number of Leads: 20%\n- Result Rate: 20%\n\nHigher scores indicate better overall performance.', 0, 'L')
 
 def create_bar_graph(metrics, width=800, height=400):
-    """Create a bar graph visualization of the provided metrics.
-
-    Args:
-        metrics (dict): Dictionary of metric names and values to visualize
-        width (int, optional): Width of the graph in pixels. Defaults to 800.
-        height (int, optional): Height of the graph in pixels. Defaults to 400.
-
-    Returns:
-        PIL.Image: The generated bar graph image
-    """
-    image = Image.new('RGB', (width, height), 'white')
-    draw = ImageDraw.Draw(image)
-    
-    # Define graph area margins
-    margin_left = 100
-    margin_right = 50
-    margin_top = 50
-    margin_bottom = 100
-    
-    # Calculate bar width and spacing
-    num_bars = len(metrics)
-    bar_width = (width - margin_left - margin_right) / (num_bars * 2)
-    
-    # Find max value for scaling
-    max_value = max(metrics.values())
-    
-    # Draw axes
-    draw.line([(margin_left, height - margin_bottom),
-              (width - margin_right, height - margin_bottom)], fill='black', width=2)
-    draw.line([(margin_left, height - margin_bottom),
-              (margin_left, margin_top)], fill='black', width=2)
-    
-    # Draw bars
-    for i, (metric_name, value) in enumerate(metrics.items()):
-        # Calculate bar position and height
-        x = margin_left + (i * 2 + 1) * bar_width
-        bar_height = ((height - margin_top - margin_bottom) * value) / max_value if max_value > 0 else 0
-        y = height - margin_bottom - bar_height
-        
-        # Draw bar with corrected coordinates
-        y_top = min(y, height - margin_bottom)
-        y_bottom = max(y, height - margin_bottom)
-        draw.rectangle([
-            (x, y_top),
-            (x + bar_width, y_bottom)
-        ], fill='lightblue', outline='black')
-        
-        # Draw value on top of bar
-        value_text = f'{value:.2f}'
-        text_bbox = draw.textbbox((0, 0), value_text)
-        text_width = text_bbox[2] - text_bbox[0]
-        draw.text((x + (bar_width - text_width) / 2, y - 20),
-                 value_text, fill='black')
-        
-        # Draw label below x-axis
-        draw.text((x + (bar_width - text_width) / 2,
-                  height - margin_bottom + 10),
-                 metric_name, fill='black')
-    
-    return image
+	image = Image.new('RGB', (width, height), 'white')
+	draw = ImageDraw.Draw(image)
+	
+	# Define graph area margins
+	margin_left = 100
+	margin_right = 50
+	margin_top = 50
+	margin_bottom = 100
+	
+	# Calculate bar width and spacing
+	num_bars = len(metrics)
+	bar_width = (width - margin_left - margin_right) / (num_bars * 2)
+	
+	# Find max value for scaling (with NaN handling)
+	valid_values = [v for v in metrics.values() if not pd.isna(v) and v is not None]
+	
+	# Handle case where there are no valid values
+	if not valid_values:
+		return image
+	
+	max_value = max(valid_values)
+	
+	# Draw axes
+	draw.line([(margin_left, height - margin_bottom),
+			  (width - margin_right, height - margin_bottom)], fill='black', width=2)
+	draw.line([(margin_left, height - margin_bottom),
+			  (margin_left, margin_top)], fill='black', width=2)
+	
+	# Draw bars
+	for i, (metric_name, value) in enumerate(metrics.items()):
+		# Skip NaN or None values
+		if pd.isna(value) or value is None:
+			continue
+			
+		# Calculate bar position and height
+		x = margin_left + (i * 2 + 1) * bar_width
+		bar_height = ((height - margin_top - margin_bottom) * value) / max_value if max_value > 0 else 0
+		y = height - margin_bottom - bar_height
+		
+		# Draw bar with corrected coordinates
+		y_top = min(y, height - margin_bottom)
+		y_bottom = max(y, height - margin_bottom)
+		draw.rectangle([
+			(x, y_top),
+			(x + bar_width, y_bottom)
+		], fill='lightblue', outline='black')
+		
+		# Draw value on top of bar
+		value_text = f'{value:.2f}'
+		text_bbox = draw.textbbox((0, 0), value_text)
+		text_width = text_bbox[2] - text_bbox[0]
+		
+		# Only draw text if we have valid coordinates
+		if not pd.isna(y) and isinstance(y, (int, float)):
+			draw.text((x + (bar_width - text_width) / 2, y - 20),
+					 value_text, fill='black')
+		
+		# Draw label below x-axis
+		draw.text((x + (bar_width - text_width) / 2,
+				  height - margin_bottom + 10),
+				 metric_name, fill='black')
+	
+	return image
 
 def add_bar_graph_page(pdf, entry, data_entry):
     """Add a bar graph visualization page to the PDF report.
@@ -550,8 +548,8 @@ def create_final_summary_graphs(pdf, data):
         metrics['CTR'].append(float(entry.get('CTR (link click-through rate)', 0)))
         metrics['CPC'].append(float(entry.get('CPC (cost per link click) (USD)', 0)))
         metrics['Result Rate'].append(float(entry.get('Result rate', 0)))
-        metrics['Leads'].append(int(entry.get('Leads', 0)))
-        metrics['Link Clicks'].append(int(entry.get('Link clicks', 0)))
+        metrics['Leads'].append(safe_convert_to_int(entry.get('Leads', 0)))
+        metrics['Link Clicks'].append(safe_convert_to_int(entry.get('Link clicks', 0)))
 
     # Create graphs for each metric group
     metric_groups = [
@@ -588,6 +586,57 @@ def create_final_summary_graphs(pdf, data):
     pdf.set_font('Arial', '', 10)
     pdf.text(10, y_position + 10, 'Note: All values shown are campaign averages across all ads.')
 
+def safe_convert_float(value, default=0.0):
+    """Safely convert a value to float, handling NaN and other invalid values.
+
+    Args:
+        value: The value to convert
+        default: Default value to return if conversion fails
+
+    Returns:
+        float: The converted float value or default
+    """
+    if pd.isna(value) or value == '-' or value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+def safe_convert_int(value, default=0):
+    """Safely convert a value to integer, handling NaN and other invalid values.
+
+    Args:
+        value: The value to convert
+        default: Default value to return if conversion fails
+
+    Returns:
+        int: The converted integer value or default
+    """
+    if pd.isna(value) or value == '-' or value is None:
+        return default
+    try:
+        return int(float(value))
+    except (ValueError, TypeError):
+        return default
+
+def safe_convert_to_int(value, default=0):
+    """Safely convert a value to integer, handling NaN and other invalid values.
+
+    Args:
+        value: The value to convert
+        default: Default value to return if conversion fails
+
+    Returns:
+        int: The converted integer value or default
+    """
+    if pd.isna(value) or value == '-':
+        return default
+    try:
+        return int(float(value))
+    except (ValueError, TypeError):
+        return default
+
 def add_continuation_summary(pdf, results, data):
     """Add a summary page with recommendations for continuing or discontinuing ads.
 
@@ -609,7 +658,7 @@ def add_continuation_summary(pdf, results, data):
         ctr = float(data[i].get('CTR (link click-through rate)', 0))
         cpc = float(data[i].get('CPC (cost per link click) (USD)', 0))
         result_rate = float(data[i].get('Result rate', 0))
-        leads = int(data[i].get('Leads', 0))
+        leads = safe_convert_to_int(data[i].get('Leads', 0))
 
         # Normalize CPC (lower is better)
         cpc_score = 1 / cpc if cpc > 0 else 0
@@ -716,215 +765,215 @@ def save_report_to_yaml(report_data: dict, yaml_file: str) -> None:
         print(f'Error saving report to YAML database: {e}')
 
 def analyze_historical_data(database_file: str) -> dict:
-	try:
-		with open(database_file, 'r') as file:
-			data = yaml.safe_load(file) or {}
+    try:
+        with open(database_file, 'r') as file:
+            data = yaml.safe_load(file) or {}
 
-		if not data:
-			return {'error': 'No historical data found'}
+        if not data:
+            return {'error': 'No historical data found'}
 
-		historical_analysis = {
-			'metrics_trends': {},
-			'top_performers': {},
-			'recommendations': [],
-			'trend_analysis': {},  # Added missing trend_analysis dictionary
-			'recurring_recommendations': {}
-		}
+        historical_analysis = {
+            'metrics_trends': {},
+            'top_performers': {},
+            'recommendations': [],
+            'trend_analysis': {},  # Added missing trend_analysis dictionary
+            'recurring_recommendations': {}
+        }
 
-		# Analyze metric trends over time
-		for timestamp, report in data.items():
-			for ad_name, metrics in report.get('metrics', {}).items():
-				# Initialize trend analysis for new ads
-				if ad_name not in historical_analysis['trend_analysis']:
-					historical_analysis['trend_analysis'][ad_name] = {
-						'CTR': {'values': []},
-						'CPC': {'values': []},
-						'Conversion_Rate': {'values': []}
-					}
+        # Analyze metric trends over time
+        for timestamp, report in data.items():
+            for ad_name, metrics in report.get('metrics', {}).items():
+                # Initialize trend analysis for new ads
+                if ad_name not in historical_analysis['trend_analysis']:
+                    historical_analysis['trend_analysis'][ad_name] = {
+                        'CTR': {'values': []},
+                        'CPC': {'values': []},
+                        'Conversion_Rate': {'values': []}
+                    }
 
-				# Add metrics to trend analysis
-				historical_analysis['trend_analysis'][ad_name]['CTR']['values'].append(metrics['CTR'])
-				historical_analysis['trend_analysis'][ad_name]['CPC']['values'].append(metrics['CPC'])
-				historical_analysis['trend_analysis'][ad_name]['Conversion_Rate']['values'].append(metrics['Result_Rate'])
+                # Add metrics to trend analysis
+                historical_analysis['trend_analysis'][ad_name]['CTR']['values'].append(metrics['CTR'])
+                historical_analysis['trend_analysis'][ad_name]['CPC']['values'].append(metrics['CPC'])
+                historical_analysis['trend_analysis'][ad_name]['Conversion_Rate']['values'].append(metrics['Result_Rate'])
 
-		# Calculate trends for each metric
-		for ad_name in historical_analysis['trend_analysis']:
-			for metric in ['CTR', 'CPC', 'Conversion_Rate']:
-				values = historical_analysis['trend_analysis'][ad_name][metric]['values']
-				historical_analysis['trend_analysis'][ad_name][metric].update(calculate_trend(values))
+        # Calculate trends for each metric
+        for ad_name in historical_analysis['trend_analysis']:
+            for metric in ['CTR', 'CPC', 'Conversion_Rate']:
+                values = historical_analysis['trend_analysis'][ad_name][metric]['values']
+                historical_analysis['trend_analysis'][ad_name][metric].update(calculate_trend(values))
 
-		return historical_analysis
+        return historical_analysis
 
-	except Exception as e:
-		return {'error': f'Error analyzing historical data: {str(e)}',
-				'trend_analysis': {}}  # Ensure trend_analysis exists even on error
+    except Exception as e:
+        return {'error': f'Error analyzing historical data: {str(e)}',
+                'trend_analysis': {}}  # Ensure trend_analysis exists even on error
 
 def calculate_metric_trend(values: list) -> dict:
-	if not values or len(values) < 2:
-		return {'trend': 'insufficient_data'}
+    if not values or len(values) < 2:
+        return {'trend': 'insufficient_data'}
 
-	first_value = values[0]
-	last_value = values[-1]
-	percent_change = ((last_value - first_value) / first_value) * 100 if first_value != 0 else 0
+    first_value = values[0]
+    last_value = values[-1]
+    percent_change = ((last_value - first_value) / first_value) * 100 if first_value != 0 else 0
 
-	return {
-		'trend': 'increasing' if percent_change > 5 else 'decreasing' if percent_change < -5 else 'stable',
-		'percent_change': percent_change
-	}
+    return {
+        'trend': 'increasing' if percent_change > 5 else 'decreasing' if percent_change < -5 else 'stable',
+        'percent_change': percent_change
+    }
 
 def identify_seasonal_patterns(trends: dict) -> dict:
-	timestamps = trends['timestamps']
-	metrics = trends['ctr']  # Using CTR as primary metric for seasonal analysis
+    timestamps = trends['timestamps']
+    metrics = trends['ctr']  # Using CTR as primary metric for seasonal analysis
 
-	if len(timestamps) < 12:  # Need at least a year of data
-		return {'exists': False}
+    if len(timestamps) < 12:  # Need at least a year of data
+        return {'exists': False}
 
-	# Convert timestamps to months and aggregate data
-	monthly_data = {}
-	for i, timestamp in enumerate(timestamps):
-		month = datetime.strptime(timestamp, '%Y-%m-%d').month
-		if month not in monthly_data:
-			monthly_data[month] = []
-		monthly_data[month].append(metrics[i])
+    # Convert timestamps to months and aggregate data
+    monthly_data = {}
+    for i, timestamp in enumerate(timestamps):
+        month = datetime.strptime(timestamp, '%Y-%m-%d').month
+        if month not in monthly_data:
+            monthly_data[month] = []
+        monthly_data[month].append(metrics[i])
 
-	# Calculate monthly averages
-	monthly_averages = {month: sum(values)/len(values) for month, values in monthly_data.items()}
+    # Calculate monthly averages
+    monthly_averages = {month: sum(values)/len(values) for month, values in monthly_data.items()}
 
-	# Identify peak periods
-	avg = sum(monthly_averages.values()) / len(monthly_averages)
-	peak_months = [month for month, value in monthly_averages.items() if value > avg * 1.1]
+    # Identify peak periods
+    avg = sum(monthly_averages.values()) / len(monthly_averages)
+    peak_months = [month for month, value in monthly_averages.items() if value > avg * 1.1]
 
-	if peak_months:
-		return {
-			'exists': True,
-			'pattern_type': 'seasonal',
-			'peak_periods': ', '.join([calendar.month_name[m] for m in peak_months])
-		}
+    if peak_months:
+        return {
+            'exists': True,
+            'pattern_type': 'seasonal',
+            'peak_periods': ', '.join([calendar.month_name[m] for m in peak_months])
+        }
 
-	return {'exists': False}
+    return {'exists': False}
 
 def calculate_roi(metrics: dict) -> float:
-	total_cost = metrics['CPC'] * metrics['Link_Clicks']
-	total_value = metrics['Leads'] * 100  # Assuming average lead value of $100
-	return (total_value - total_cost) / total_cost if total_cost > 0 else 0
+    total_cost = metrics['CPC'] * metrics['Link_Clicks']
+    total_value = metrics['Leads'] * 100  # Assuming average lead value of $100
+    return (total_value - total_cost) / total_cost if total_cost > 0 else 0
 
 def calculate_trend(values: list) -> dict:
-	"""Calculate trend information for a series of values.
+    """Calculate trend information for a series of values.
 
-	Args:
-		values (list): List of numerical values
+    Args:
+        values (list): List of numerical values
 
-	Returns:
-		dict: Dictionary containing trend analysis
-	"""
-	if not values or len(values) < 2:
-		return {'trend': 'insufficient_data'}
+    Returns:
+        dict: Dictionary containing trend analysis
+    """
+    if not values or len(values) < 2:
+        return {'trend': 'insufficient_data'}
 
-	first_value = values[0]
-	last_value = values[-1]
-	percent_change = ((last_value - first_value) / first_value) * 100 if first_value != 0 else 0
+    first_value = values[0]
+    last_value = values[-1]
+    percent_change = ((last_value - first_value) / first_value) * 100 if first_value != 0 else 0
 
-	return {
-		'trend': 'increasing' if percent_change > 5 else 'decreasing' if percent_change < -5 else 'stable',
-		'percent_change': percent_change,
-		'first_value': first_value,
-		'last_value': last_value,
-		'average': sum(values) / len(values)
-	}
+    return {
+        'trend': 'increasing' if percent_change > 5 else 'decreasing' if percent_change < -5 else 'stable',
+        'percent_change': percent_change,
+        'first_value': first_value,
+        'last_value': last_value,
+        'average': sum(values) / len(values)
+    }
 
 def add_historical_analysis_page(pdf: FPDF, database_file: str) -> None:
-	"""Add a page analyzing historical performance data to the PDF report.
+    """Add a page analyzing historical performance data to the PDF report.
 
-	Args:
-		pdf (FPDF): The PDF document object to add the page to
-		database_file (str): Path to the YAML database file
-	"""
-	# Get historical analysis
-	analysis = analyze_historical_data(database_file)
+    Args:
+        pdf (FPDF): The PDF document object to add the page to
+        database_file (str): Path to the YAML database file
+    """
+    # Get historical analysis
+    analysis = analyze_historical_data(database_file)
 
-	if 'error' in analysis:
-		return
+    if 'error' in analysis:
+        return
 
-	# Add new page
-	pdf.add_page()
-	pdf.set_font('Arial', 'B', 24)
-	pdf.cell(0, 10, 'Historical Performance Analysis', 0, 1, 'C')
-	pdf.ln(10)
+    # Add new page
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 24)
+    pdf.cell(0, 10, 'Historical Performance Analysis', 0, 1, 'C')
+    pdf.ln(10)
 
-	# Add Top Performers section
-	pdf.set_font('Arial', 'B', 16)
-	pdf.cell(0, 10, 'Top Performing Ads', 0, 1)
-	pdf.ln(5)
+    # Add Top Performers section
+    pdf.set_font('Arial', 'B', 16)
+    pdf.cell(0, 10, 'Top Performing Ads', 0, 1)
+    pdf.ln(5)
 
-	pdf.set_font('Arial', '', 12)
-	for ad_name, score in analysis['top_performers'].items():
-		pdf.cell(0, 8, f'{ad_name}: {score:.2f}', 0, 1)
+    pdf.set_font('Arial', '', 12)
+    for ad_name, score in analysis['top_performers'].items():
+        pdf.cell(0, 8, f'{ad_name}: {score:.2f}', 0, 1)
 
-	# Add Trend Analysis section
-	pdf.ln(10)
-	pdf.set_font('Arial', 'B', 16)
-	pdf.cell(0, 10, 'Performance Trends', 0, 1)
+    # Add Trend Analysis section
+    pdf.ln(10)
+    pdf.set_font('Arial', 'B', 16)
+    pdf.cell(0, 10, 'Performance Trends', 0, 1)
 
-	pdf.set_font('Arial', '', 12)
-	for ad_name, trends in analysis['trend_analysis'].items():
-		pdf.ln(5)
-		pdf.set_font('Arial', 'B', 12)
-		pdf.cell(0, 8, ad_name, 0, 1)
-		pdf.set_font('Arial', '', 12)
-		for metric, trend_data in trends.items():
-			if trend_data['trend'] != 'insufficient_data':
-				pdf.cell(0, 6, 
-					f"{metric}: {trend_data['trend']} ({trend_data['percent_change']:.1f}% change)", 
-					0, 1)
+    pdf.set_font('Arial', '', 12)
+    for ad_name, trends in analysis['trend_analysis'].items():
+        pdf.ln(5)
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, ad_name, 0, 1)
+        pdf.set_font('Arial', '', 12)
+        for metric, trend_data in trends.items():
+            if trend_data['trend'] != 'insufficient_data':
+                pdf.cell(0, 6, 
+                    f"{metric}: {trend_data['trend']} ({trend_data['percent_change']:.1f}% change)", 
+                    0, 1)
 
-	# Add Recurring Recommendations section with expanded insights
-	pdf.ln(10)
-	pdf.set_font('Arial', 'B', 16)
-	pdf.cell(0, 10, 'Performance Insights & Recommendations', 0, 1)
+    # Add Recurring Recommendations section with expanded insights
+    pdf.ln(10)
+    pdf.set_font('Arial', 'B', 16)
+    pdf.cell(0, 10, 'Performance Insights & Recommendations', 0, 1)
 
-	pdf.set_font('Arial', '', 12)
-	# Add general performance insights
-	pdf.multi_cell(0, 8, 'Overall Campaign Performance:', 0, 'L')
-	pdf.ln(5)
+    pdf.set_font('Arial', '', 12)
+    # Add general performance insights
+    pdf.multi_cell(0, 8, 'Overall Campaign Performance:', 0, 'L')
+    pdf.ln(5)
 
-	# Add specific recommendations based on historical data
-	pdf.set_font('Arial', 'B', 14)
-	pdf.cell(0, 8, 'Strategic Recommendations:', 0, 1)
-	pdf.set_font('Arial', '', 12)
+    # Add specific recommendations based on historical data
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 8, 'Strategic Recommendations:', 0, 1)
+    pdf.set_font('Arial', '', 12)
 
-	# Budget Optimization
-	pdf.multi_cell(0, 8, '1. Budget Allocation:\n- Redistribute budget from underperforming ads to top performers\n- Consider increasing investment in ads showing consistent growth\n- Implement dayparting based on historical performance patterns', 0, 'L')
-	pdf.ln(5)
+    # Budget Optimization
+    pdf.multi_cell(0, 8, '1. Budget Allocation:\n- Redistribute budget from underperforming ads to top performers\n- Consider increasing investment in ads showing consistent growth\n- Implement dayparting based on historical performance patterns', 0, 'L')
+    pdf.ln(5)
 
-	# Creative Optimization
-	pdf.multi_cell(0, 8, '2. Creative Strategy:\n- Analyze creative elements of top-performing ads\n- Test new variations based on successful patterns\n- Remove or revise consistently underperforming creatives', 0, 'L')
-	pdf.ln(5)
+    # Creative Optimization
+    pdf.multi_cell(0, 8, '2. Creative Strategy:\n- Analyze creative elements of top-performing ads\n- Test new variations based on successful patterns\n- Remove or revise consistently underperforming creatives', 0, 'L')
+    pdf.ln(5)
 
-	# Audience Insights
-	pdf.multi_cell(0, 8, '3. Audience Targeting:\n- Refine audience targeting based on top performer demographics\n- Expand reach for ads with strong engagement metrics\n- Consider creating lookalike audiences from high-converting segments', 0, 'L')
-	pdf.ln(5)
+    # Audience Insights
+    pdf.multi_cell(0, 8, '3. Audience Targeting:\n- Refine audience targeting based on top performer demographics\n- Expand reach for ads with strong engagement metrics\n- Consider creating lookalike audiences from high-converting segments', 0, 'L')
+    pdf.ln(5)
 
-	# Performance Optimization
-	pdf.multi_cell(0, 8, '4. Performance Optimization:\n- Adjust bid strategies based on historical CPC trends\n- Optimize ad scheduling around peak performance times\n- Consider placement modifications based on performance data', 0, 'L')
-	pdf.ln(5)
+    # Performance Optimization
+    pdf.multi_cell(0, 8, '4. Performance Optimization:\n- Adjust bid strategies based on historical CPC trends\n- Optimize ad scheduling around peak performance times\n- Consider placement modifications based on performance data', 0, 'L')
+    pdf.ln(5)
 
-	# Testing Strategy
-	pdf.multi_cell(0, 8, '5. Testing Recommendations:\n- Implement A/B tests on successful ad elements\n- Test new ad formats based on platform trends\n- Experiment with different call-to-action variations', 0, 'L')
-	pdf.ln(5)
+    # Testing Strategy
+    pdf.multi_cell(0, 8, '5. Testing Recommendations:\n- Implement A/B tests on successful ad elements\n- Test new ad formats based on platform trends\n- Experiment with different call-to-action variations', 0, 'L')
+    pdf.ln(5)
 
-	# Add specific action items
-	pdf.set_font('Arial', 'B', 14)
-	pdf.cell(0, 8, 'Immediate Action Items:', 0, 1)
-	pdf.set_font('Arial', '', 12)
-	for recommendation, count in analysis['recurring_recommendations'].items():
-		pdf.multi_cell(0, 8, f'• {recommendation} (suggested {count} times)', 0, 'L')
+    # Add specific action items
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 8, 'Immediate Action Items:', 0, 1)
+    pdf.set_font('Arial', '', 12)
+    for recommendation, count in analysis['recurring_recommendations'].items():
+        pdf.multi_cell(0, 8, f'• {recommendation} (suggested {count} times)', 0, 'L')
 
-	# Add future outlook section
-	pdf.ln(5)
-	pdf.set_font('Arial', 'B', 14)
-	pdf.cell(0, 8, 'Future Outlook:', 0, 1)
-	pdf.set_font('Arial', '', 12)
-	pdf.multi_cell(0, 8, 'Based on historical trends, consider:\n- Seasonal adjustments to campaign strategy\n- Platform-specific optimization opportunities\n- Emerging audience targeting options\n- New ad format opportunities', 0, 'L')
+    # Add future outlook section
+    pdf.ln(5)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 8, 'Future Outlook:', 0, 1)
+    pdf.set_font('Arial', '', 12)
+    pdf.multi_cell(0, 8, 'Based on historical trends, consider:\n- Seasonal adjustments to campaign strategy\n- Platform-specific optimization opportunities\n- Emerging audience targeting options\n- New ad format opportunities', 0, 'L')
 
 def generate_pdf_report(results: list, data: list, output_file: str, organization: str) -> None:
     """Generate a comprehensive PDF report of ad performance analysis.
@@ -1007,10 +1056,10 @@ def generate_pdf_report(results: list, data: list, output_file: str, organizatio
         funnel_metrics = {
             'CPM ($)': float(data[i].get('CPM (cost per 1,000 impressions) (USD)', 0)),
             'CTR (%)': float(data[i].get('CTR (link click-through rate)', 0)),
-            'Link Clicks (#)': int(data[i].get('Link clicks', 0)),
+            'Link Clicks (#)': safe_convert_int(data[i].get('Link clicks', 0)),
             'CPC ($)': float(data[i].get('CPC (cost per link click) (USD)', 0)),
             'Results (%)': float(data[i].get('Result rate', 0)),
-            'Leads (#)': int(data[i].get('Leads', 0))
+            'Leads (#)': safe_convert_int(data[i].get('Leads', 0))
         }
         
         temp_image_path = f'temp_funnel_{i}.png'
@@ -1050,15 +1099,15 @@ def generate_pdf_report(results: list, data: list, output_file: str, organizatio
             'CTR': float(data[i].get('CTR (link click-through rate)', 0)),
             'CPC': float(data[i].get('CPC (cost per link click) (USD)', 0)),
             'Result_Rate': float(data[i].get('Result rate', 0)),
-            'Leads': int(data[i].get('Leads', 0)),
-            'Link_Clicks': int(data[i].get('Link clicks', 0))
+            'Leads': safe_convert_int(data[i].get('Leads', 0)),
+            'Link_Clicks': safe_convert_int(data[i].get('Link clicks', 0))
         }
 
         # Calculate performance score
         ctr = float(data[i].get('CTR (link click-through rate)', 0))
         cpc = float(data[i].get('CPC (cost per link click) (USD)', 0))
         result_rate = float(data[i].get('Result rate', 0))
-        leads = int(data[i].get('Leads', 0))
+        leads = safe_convert_int(data[i].get('Leads', 0))
 
         cpc_score = 1 / cpc if cpc > 0 else 0
         score = (ctr * 0.3) + (cpc_score * 0.3) + (result_rate * 0.2) + (leads * 0.2)
